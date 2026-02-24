@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2 class="mb-4">Welcome to SecureVault Dashboard</h2>
+
+<div class="row">
+    <div class="col-md-4">
+        <div class="card p-3">
+            <h5>Total Files</h5>
+            <h3>0</h3>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card p-3">
+            <h5>Last Login</h5>
+            <h6>--</h6>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card p-3">
+            <h5>Failed Attempts</h5>
+            <h6>0</h6>
+        </div>
+    </div>
+</div>
+
+<hr>
+
+<a href="/upload" class="btn btn-success mt-3">Upload File</a>
+{% endblock %}
