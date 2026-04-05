@@ -15,8 +15,41 @@
 <nav class="navbar navbar-dark bg-dark px-4">
     <span class="navbar-brand">🔐 SecureVault</span>
     <div>
-        <a href="/login" class="btn btn-outline-light btn-sm">Login</a>
-        <a href="/register" class="btn btn-outline-light btn-sm">Register</a>
+        <ul class="navbar-nav ms-auto">
+
+    {% if session.get("user") %}
+    
+        <!-- Logged-in user view -->
+        <li class="nav-item">
+            <span class="nav-link">Welcome, {{ session["user"] }}</span>
+        </li>
+
+        <li class="nav-item">
+            <a class="nav-link" href="/dashboard">Dashboard</a>
+        </li>
+
+        <li class="nav-item">
+            <a class="nav-link" href="/upload">Upload</a>
+        </li>
+
+        <li class="nav-item">
+            <a class="nav-link text-danger" href="/logout">Logout</a>
+        </li>
+
+    {% else %}
+
+        <!-- Guest view -->
+        <li class="nav-item">
+            <a class="nav-link" href="/login">Login</a>
+        </li>
+
+        <li class="nav-item">
+            <a class="nav-link" href="/register">Register</a>
+        </li>
+
+    {% endif %}
+
+</ul>
     </div>
 </nav>
 

@@ -7,7 +7,7 @@
     <div class="col-md-4">
         <div class="card p-3">
             <h5>Total Files</h5>
-            <h3>0</h3>
+            <h3>{{ files|length }}</h3>
         </div>
     </div>
 
@@ -29,4 +29,21 @@
 <hr>
 
 <a href="/upload" class="btn btn-success mt-3">Upload File</a>
+
+<hr>
+
+<h4 class="mt-4">Your Files</h4>
+
+<ul class="list-group">
+    {% for file in files %}
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+            {{ file[0] }}
+
+            <a href="/download/{{ file[0] }}" class="btn btn-primary btn-sm">
+                Download
+            </a>
+        </li>
+    {% endfor %}
+</ul>
+
 {% endblock %}
