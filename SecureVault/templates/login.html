@@ -5,21 +5,24 @@
     <div class="col-md-5">
         <div class="card p-4">
             <h3 class="text-center mb-3">Login</h3>
-            <form method="POST">
+            
+            <form method="POST" action="/login">
 
-    <div class="mb-3">
-        <label>Username</label>
-        <input type="text" name="username" class="form-control" required>
-    </div>
+                <div class="mb-3">
+                    <label>Username</label>
+                    <input type="text" name="username" class="form-control" required>
+                </div>
 
-    <div class="mb-3">
-        <label>Password</label>
-        <input type="password" name="password" class="form-control" required>
-    </div>
+                <div class="mb-3">
+                    <label>Password</label>
+                    <input type="password" name="password" class="form-control" required>
+                </div>
 
-    <button class="btn btn-primary w-100">Login</button>
+                <button type="submit" class="btn btn-primary w-100">
+                    Login
+                </button>
 
-</form>
+            </form>
         </div>
     </div>
 </div>

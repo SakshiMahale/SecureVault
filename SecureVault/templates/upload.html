@@ -5,13 +5,23 @@
     <div class="col-md-6">
         <div class="card p-4">
             <h3 class="text-center mb-3">Upload File</h3>
-            <form enctype="multipart/form-data">
+
+            <form method="POST" action="/upload" enctype="multipart/form-data">
+
                 <div class="mb-3">
-                    <input type="file" class="form-control" required>
+                    <label>Select File</label>
+                    <input type="file" name="file" class="form-control" required>
                 </div>
 
-                <button class="btn btn-success w-100">Encrypt & Upload</button>
+                <button type="submit" class="btn btn-success w-100">
+                    Encrypt & Upload
+                </button>
+
             </form>
+
+            <a href="/dashboard" class="btn btn-secondary w-100 mt-3">
+                Back to Dashboard
+            </a>
         </div>
     </div>
 </div>

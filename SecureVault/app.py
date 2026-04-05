@@ -88,6 +88,17 @@ def login():
 
     return render_template("login.html")
 
+@app.route("/dashboard")
+def dashboard():
+    return render_template("dashboard.html")
+
+@app.route("/upload", methods=["GET", "POST"])
+def upload():
+    if request.method == "POST":
+        uploaded_file = request.files["file"]
+        return "File received successfully!"
+
+    return render_template("upload.html")
 
 if __name__ == "__main__":
     app.run(debug=True)
