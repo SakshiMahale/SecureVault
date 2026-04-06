@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, redirect
 from flask import session
 from utils.encryption import encrypt_file, decrypt_file
 from utils.signature import sign_data, verify_signature
+from datetime import datetime, timedelta
 
 from flask import send_file
 
@@ -24,7 +25,9 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT,
         email TEXT,
-        password TEXT
+        password TEXT,
+        failed_attempts INTEGER DEFAULT 0,
+        lock_until TEXT
     )
     """)
     conn.commit()
@@ -78,20 +81,74 @@ def login():
         conn = sqlite3.connect("database.db")
         cursor = conn.cursor()
 
-        cursor.execute("SELECT password FROM users WHERE username = ?", (username,))
+        cursor.execute(
+            "SELECT password, failed_attempts, lock_until FROM users WHERE username = ?",
+            (username,)
+        )
         user = cursor.fetchone()
 
-        conn.close()
-
         if user:
-            stored_password = user[0]
+            stored_password, failed_attempts, lock_until = user
 
+            # 🔒 CHECK IF ACCOUNT IS LOCKED
+            if lock_until:
+                lock_time = datetime.fromisoformat(lock_until)
+                now = datetime.now()
+
+                if now < lock_time:
+                    remaining_time = lock_time - now
+                    seconds = int(remaining_time.total_seconds())
+
+                    mins = seconds // 60
+                    secs = seconds % 60
+
+                    conn.close()
+                    return f"Account locked! Try again in {mins} min {secs} sec"
+
+            # ✅ CHECK PASSWORD
             if bcrypt.checkpw(password.encode("utf-8"), stored_password):
-                session["user"] = username   # ADD THIS LINE
-                return redirect("/dashboard")
-            else:
-                return "Invalid password"
 
+                # RESET ATTEMPTS AFTER SUCCESS
+                cursor.execute(
+                    "UPDATE users SET failed_attempts = 0, lock_until = NULL WHERE username = ?",
+                    (username,)
+                )
+
+                conn.commit()
+                conn.close()
+
+                session["user"] = username
+                return redirect("/dashboard")
+
+            else:
+                # ❌ WRONG PASSWORD
+                failed_attempts += 1
+
+                if failed_attempts >= 3:
+                    lock_time = datetime.now() + timedelta(seconds=30)
+
+                    cursor.execute(
+                        "UPDATE users SET failed_attempts = ?, lock_until = ? WHERE username = ?",
+                        (failed_attempts, lock_time.isoformat(), username)
+                    )
+
+                    conn.commit()
+                    conn.close()
+
+                    return "Too many failed attempts! Account locked for 30 seconds."
+
+                else:
+                    cursor.execute(
+                        "UPDATE users SET failed_attempts = ? WHERE username = ?",
+                        (failed_attempts, username)
+                    )
+
+                    conn.commit()
+                    conn.close()
+
+                    return f"Invalid password! Attempts left: {3 - failed_attempts}"
+
+        conn.close()
         return "User not found"
 
     return render_template("login.html")
@@ -121,17 +178,33 @@ def upload():
 
     if request.method == "POST":
         file = request.files["file"]
+        file_password = request.form["file_password"]
 
+        hashed_file_password = bcrypt.hashpw(file_password.encode("utf-8"), bcrypt.gensalt())
+        
         if file:
             filename = file.filename
             file_data = file.read()
 
-            # 🔐 STEP 1: SIGN ORIGINAL DATA
-            signature = sign_data(file_data)
+            # ⏰ Set expiry (example: 2 minutes)
+            expiry_time = datetime.now() + timedelta(minutes=1)
+            expiry_bytes = expiry_time.isoformat().encode()
 
-            # 🔐 STEP 2: STORE signature + data
+            # store length of expiry (fixed 4 bytes)
+            expiry_length = len(expiry_bytes).to_bytes(4, 'big')
+
+            # 🔐 SIGN DATA
+            signature = sign_data(file_data)
             signature_length = len(signature).to_bytes(4, 'big')
-            combined_data = signature_length + signature + file_data
+
+            # 📦 COMBINE EVERYTHING
+            combined_data = (
+                expiry_length +
+                expiry_bytes +
+                signature_length +
+                signature +
+                file_data
+            )
 
             # 🔐 STEP 3: ENCRYPT
             encrypted_data = encrypt_file(combined_data)
@@ -148,8 +221,8 @@ def upload():
             cursor = conn.cursor()
 
             cursor.execute(
-                "INSERT INTO files (username, filename, filepath) VALUES (?, ?, ?)",
-                (session["user"], stored_name, filepath)
+                "INSERT INTO files (username, filename, filepath, file_password) VALUES (?, ?, ?, ?)",
+                (session["user"], stored_name, filepath, hashed_file_password)
             )
 
             conn.commit()
@@ -159,32 +232,66 @@ def upload():
 
     return render_template("upload.html")
 
-@app.route("/download/<filename>")
+@app.route("/download/<filename>", methods=["GET", "POST"])
 def download(filename):
     if "user" not in session:
         return redirect("/login")
 
-    filepath = os.path.join("uploads", filename)
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT filepath, file_password FROM files WHERE filename = ? AND username = ?",
+        (filename, session["user"])
+    )
+    file = cursor.fetchone()
+    conn.close()
+
+    if not file:
+        return "File not found"
+
+    filepath, stored_password = file
+
+    # STEP 1: Ask password first
+    if request.method == "GET":
+        return render_template("file_password.html", filename=filename)
+
+    # STEP 2: Verify password
+    entered_password = request.form["password"]
+
+    if not bcrypt.checkpw(entered_password.encode("utf-8"), stored_password):
+        return "❌ Incorrect file password"
+
+    # STEP 3: Continue decryption
 
     with open(filepath, "rb") as f:
         encrypted_data = f.read()
 
     decrypted_data = decrypt_file(encrypted_data)
 
-    # STEP 1: Extract signature (first 256 bytes for RSA 2048)
-    signature_length = int.from_bytes(decrypted_data[:4], 'big')
+    # ---- EXPIRY CHECK ----
+    expiry_length = int.from_bytes(decrypted_data[:4], 'big')
+    expiry_bytes = decrypted_data[4:4+expiry_length]
+    expiry_time = datetime.fromisoformat(expiry_bytes.decode())
 
-    signature = decrypted_data[4:4+signature_length]
-    original_data = decrypted_data[4+signature_length:]
-    
-    print("Decrypted length:", len(decrypted_data))
+    current_index = 4 + expiry_length
 
-    # STEP 2: Verify signature
+    if datetime.now() > expiry_time:
+        return "⛔ File expired"
+
+    # ---- SIGNATURE ----
+    signature_length = int.from_bytes(decrypted_data[current_index:current_index+4], 'big')
+    current_index += 4
+
+    signature = decrypted_data[current_index:current_index+signature_length]
+    current_index += signature_length
+
+    original_data = decrypted_data[current_index:]
+
     if not verify_signature(original_data, signature):
-        return "Signature verification failed! File tampered."
+        return "⚠️ File tampered!"
 
-    # STEP 3: continue normally
-
+    # ---- SEND FILE ----
     temp_path = os.path.join("uploads", "temp_" + filename.replace(".enc", ""))
 
     with open(temp_path, "wb") as f:
