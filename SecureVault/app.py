@@ -90,7 +90,7 @@ def login():
         if user:
             stored_password, failed_attempts, lock_until = user
 
-            # 🔒 CHECK IF ACCOUNT IS LOCKED
+            #  CHECK IF ACCOUNT IS LOCKED
             if lock_until:
                 lock_time = datetime.fromisoformat(lock_until)
                 now = datetime.now()
@@ -105,7 +105,7 @@ def login():
                     conn.close()
                     return f"Account locked! Try again in {mins} min {secs} sec"
 
-            # ✅ CHECK PASSWORD
+            #  CHECK PASSWORD
             if bcrypt.checkpw(password.encode("utf-8"), stored_password):
 
                 # RESET ATTEMPTS AFTER SUCCESS
@@ -121,7 +121,7 @@ def login():
                 return redirect("/dashboard")
 
             else:
-                # ❌ WRONG PASSWORD
+                #  WRONG PASSWORD
                 failed_attempts += 1
 
                 if failed_attempts >= 3:
@@ -186,18 +186,18 @@ def upload():
             filename = file.filename
             file_data = file.read()
 
-            # ⏰ Set expiry (example: 2 minutes)
+            #  Set expiry (example: 2 minutes)
             expiry_time = datetime.now() + timedelta(minutes=1)
             expiry_bytes = expiry_time.isoformat().encode()
 
             # store length of expiry (fixed 4 bytes)
             expiry_length = len(expiry_bytes).to_bytes(4, 'big')
 
-            # 🔐 SIGN DATA
+            #  SIGN DATA
             signature = sign_data(file_data)
             signature_length = len(signature).to_bytes(4, 'big')
 
-            # 📦 COMBINE EVERYTHING
+            #  COMBINE EVERYTHING
             combined_data = (
                 expiry_length +
                 expiry_bytes +
@@ -206,17 +206,17 @@ def upload():
                 file_data
             )
 
-            # 🔐 STEP 3: ENCRYPT
+            #  STEP 3: ENCRYPT
             encrypted_data = encrypt_file(combined_data)
 
-            # 📁 SAVE FILE
+            #  SAVE FILE
             stored_name = filename + ".enc"
             filepath = os.path.join("uploads", stored_name)
 
             with open(filepath, "wb") as f:
                 f.write(encrypted_data)
 
-            # 💾 SAVE TO DATABASE
+            #  SAVE TO DATABASE
             conn = sqlite3.connect("database.db")
             cursor = conn.cursor()
 
@@ -228,7 +228,7 @@ def upload():
             conn.commit()
             conn.close()
 
-            return "File uploaded successfully!"
+            return redirect("/dashboard?msg=upload_success")
 
     return render_template("upload.html")
 
@@ -254,13 +254,25 @@ def download(filename):
 
     # STEP 1: Ask password first
     if request.method == "GET":
-        return render_template("file_password.html", filename=filename)
+        error = request.args.get("error")
+        return render_template("file_password.html", filename=filename, error=error)
 
     # STEP 2: Verify password
     entered_password = request.form["password"]
 
-    if not bcrypt.checkpw(entered_password.encode("utf-8"), stored_password):
-        return "❌ Incorrect file password"
+    try:
+    # convert stored password safely to bytes
+        if isinstance(stored_password, memoryview):
+            stored_password = stored_password.tobytes()
+        elif isinstance(stored_password, str):
+            stored_password = stored_password.encode("utf-8")
+
+        if not bcrypt.checkpw(entered_password.encode("utf-8"), stored_password):
+            return redirect(f"/download/{filename}?error=wrong_password")
+
+    except Exception as e:
+        print("ERROR DURING PASSWORD CHECK:", e)
+        return redirect(f"/download/{filename}?error=wrong_password")
 
     # STEP 3: Continue decryption
 
@@ -277,7 +289,7 @@ def download(filename):
     current_index = 4 + expiry_length
 
     if datetime.now() > expiry_time:
-        return "⛔ File expired"
+        return " File expired"
 
     # ---- SIGNATURE ----
     signature_length = int.from_bytes(decrypted_data[current_index:current_index+4], 'big')
@@ -289,7 +301,7 @@ def download(filename):
     original_data = decrypted_data[current_index:]
 
     if not verify_signature(original_data, signature):
-        return "⚠️ File tampered!"
+        return " File tampered!"
 
     # ---- SEND FILE ----
     temp_path = os.path.join("uploads", "temp_" + filename.replace(".enc", ""))
