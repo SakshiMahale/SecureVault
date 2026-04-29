@@ -1,49 +1,63 @@
 {% extends "base.html" %}
 
 {% block content %}
-<h2 class="mb-4">Welcome to SecureVault Dashboard</h2>
+<div class="hero-box mb-4">
+    <h2 class="mb-2">Welcome to SecureVault Dashboard</h2>
+    <p class="text-muted mb-0">
+        Securely upload, encrypt, store, and download your files using AES with ECC or ElGamal protection.
+    </p>
+</div>
 
-<div class="row">
-    <div class="col-md-4">
-        <div class="card p-3">
+<div class="row mb-4">
+    <div class="col-md-4 mb-3">
+        <div class="card p-3 text-center">
             <h5>Total Files</h5>
             <h3>{{ files|length }}</h3>
         </div>
     </div>
 
-    <div class="col-md-4">
-        <div class="card p-3">
-            <h5>Last Login</h5>
-            <h6>--</h6>
+    <div class="col-md-4 mb-3">
+        <div class="card p-3 text-center">
+            <h5>Encryption Support</h5>
+            <h6>ECC + ElGamal</h6>
         </div>
     </div>
 
-    <div class="col-md-4">
-        <div class="card p-3">
-            <h5>Failed Attempts</h5>
-            <h6>0</h6>
+    <div class="col-md-4 mb-3">
+        <div class="card p-3 text-center">
+            <h5>Account Status</h5>
+            <h6>Authenticated</h6>
         </div>
     </div>
 </div>
 
-<hr>
+<div class="mb-4">
+    <a href="/upload" class="btn btn-success me-2">Upload New File</a>
+    <a href="/logout" class="btn btn-outline-danger">Logout</a>
+</div>
 
-<a href="/upload" class="btn btn-success mt-3">Upload File</a>
+<div class="card p-4">
+    <h4 class="mb-3">Your Files</h4>
 
-<hr>
+    {% if files|length == 0 %}
+        <div class="alert alert-info mb-0">
+            No files uploaded yet. Click <strong>Upload New File</strong> to add your first secure file.
+        </div>
+    {% else %}
+        <ul class="list-group">
+            {% for file in files %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>{{ file[0] }}</strong>
+                        <span class="badge bg-primary ms-2">{{ file[1] }}</span>
+                    </div>
 
-<h4 class="mt-4">Your Files</h4>
-
-<ul class="list-group">
-    {% for file in files %}
-        <li class="list-group-item d-flex justify-content-between align-items-center">
-            {{ file[0] }}
-
-            <a href="/download/{{ file[0] }}" class="btn btn-primary btn-sm">
-                Download
-            </a>
-        </li>
-    {% endfor %}
-</ul>
-
+                    <a href="/download/{{ file[0] }}" class="btn btn-primary btn-sm">
+                        Download
+                    </a>
+                </li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+</div>
 {% endblock %}
